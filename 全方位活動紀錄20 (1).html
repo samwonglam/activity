@@ -1,0 +1,2005 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全方位活動紀錄 - 學校行程與檔期衝突防護系統 (Google Sheet 雲端永久同步版)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- SheetJS Excel Library -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .pulse-sync {
+            animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800">
+
+    <!-- Header Navbar -->
+    <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-800 text-white shadow-lg sticky top-0 z-40 transition-colors duration-300" id="mainHeader">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white/20 p-2.5 rounded-2xl backdrop-blur-md shadow-inner">
+                    <i class="fa-solid fa-calendar-check text-2xl text-amber-300"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-xl sm:text-2xl font-black tracking-wide">全方位活動紀錄</h1>
+                        <span id="roleBadge" class="bg-amber-400 text-slate-900 text-xs font-black px-2.5 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                            <i class="fa-solid fa-user-pen"></i>教師登記模式
+                        </span>
+                    </div>
+                    <p class="text-xs text-blue-100 font-medium">學校教職員活動行程登記、場地衝突防護與 Google Sheet 雲端雙向同步系統</p>
+                </div>
+            </div>
+
+            <!-- Controls & Cloud Status -->
+            <div class="flex items-center space-x-2">
+                <button onclick="handleSheetConfigClick()" id="btnSheetConfig" class="px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 relative group" title="Google Sheet 雲端連線設定 (僅限管理員)">
+                    <i class="fa-solid fa-cloud text-amber-300" id="sheetStatusIcon"></i>
+                    <span id="sheetStatusText">Google Sheet 連線中</span>
+                    <i class="fa-solid fa-gear text-[10px] text-amber-300 ml-0.5"></i>
+                    <span id="sheetStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block pulse-sync"></span>
+                </button>
+
+                <div class="bg-black/20 p-1 rounded-2xl border border-white/10 flex items-center">
+                    <button onclick="requestRoleSwitch('teacher')" id="btnRoleTeacher" class="px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 bg-white text-blue-900 shadow">
+                        <i class="fa-solid fa-pen-to-square"></i> 教師登記
+                    </button>
+                    <button onclick="requestRoleSwitch('admin')" id="btnRoleAdmin" class="px-3 py-1.5 text-xs font-bold rounded-xl transition text-blue-100 hover:text-white">
+                        <i class="fa-solid fa-lock text-amber-300 mr-0.5"></i> 管理員專區
+                    </button>
+                </div>
+
+                <button onclick="openHelpModal()" class="px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 transition" title="使用說明">
+                    <i class="fa-solid fa-circle-question text-base"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Mode Alert Bar -->
+    <div id="modeAlertBar" class="bg-blue-50 border-b border-blue-200 px-4 py-2 text-xs text-blue-800 flex items-center justify-between">
+        <div class="max-w-7xl mx-auto w-full flex flex-wrap items-center justify-between gap-2">
+            <span id="modeAlertText" class="flex items-center gap-2">
+                <i class="fa-solid fa-circle-info text-blue-600"></i>
+                <b>Google Sites 雲端共用模式：</b>已自動寫死並連結全校中央紀錄庫，自動防範場地與時間重疊衝突。
+            </span>
+            <div class="flex items-center gap-2.5">
+                <button onclick="triggerFileInput()" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1 shadow-xs">
+                    <i class="fa-solid fa-file-import"></i> 匯入 Excel / CSV
+                </button>
+                <button onclick="downloadBlankTemplate()" class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs rounded-lg transition flex items-center gap-1 shadow-xs">
+                    <i class="fa-solid fa-file-excel text-emerald-600"></i> 下載空白匯入範本
+                </button>
+                <button onclick="manualSyncCloud()" class="text-emerald-700 hover:underline font-bold text-xs flex items-center gap-1">
+                    <i class="fa-solid fa-rotate text-emerald-600" id="syncSpinIcon"></i> 立即同步雲端資料
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden File Input for Excel Import -->
+    <input type="file" id="importFileInput" accept=".xlsx, .xls, .csv" onchange="handleFileImport(event)" class="hidden">
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Main Workspace -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-grow w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- Left Form Panel (5 Cols) -->
+        <section class="lg:col-span-5 bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-6 bg-blue-600 rounded-full"></span>
+                        <h2 class="text-lg font-bold text-slate-800">登記活動項目</h2>
+                    </div>
+                    <span class="text-[11px] font-semibold text-slate-400">帶 * 為必填欄位</span>
+                </div>
+
+                <!-- Registration Form -->
+                <form id="activityForm" onsubmit="handleAddActivity(event)" class="space-y-4 text-xs sm:text-sm">
+                    
+                    <!-- Activity Title -->
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">
+                            <i class="fa-solid fa-heading text-blue-500 mr-1"></i>活動名稱 <span class="text-rose-500">*</span>
+                        </label>
+                        <input type="text" id="actTitle" required placeholder="例如：田徑隊訓練 / 小一輔導課 / 全校陸運會" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                    </div>
+
+                    <!-- Date Selection Block -->
+                    <div class="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label class="font-bold text-blue-900 flex items-center text-xs sm:text-sm">
+                                <i class="fa-solid fa-calendar-days text-blue-600 mr-1.5"></i>日期設定
+                            </label>
+                            <span class="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">自動防範場地衝突</span>
+                        </div>
+
+                        <!-- Single / Multi Switcher -->
+                        <div class="bg-blue-100/80 p-1 rounded-xl flex items-center gap-1 border border-blue-200">
+                            <button type="button" id="btnModeSingle" onclick="switchEventMode('single')" class="flex-1 py-1.5 px-3 text-xs font-bold rounded-xl transition bg-blue-600 text-white shadow-xs flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-calendar-day"></i> 單日活動
+                            </button>
+                            <button type="button" id="btnModeMulti" onclick="switchEventMode('multi')" class="flex-1 py-1.5 px-3 text-xs font-bold rounded-xl transition bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-calendar-week"></i> 多日 / 週期活動
+                            </button>
+                        </div>
+
+                        <!-- Single Date Input -->
+                        <div id="singleDateContainer" class="bg-white p-3 rounded-xl border border-blue-100">
+                            <label class="block text-xs font-bold text-slate-700 mb-1">活動日期 <span class="text-rose-500">*</span></label>
+                            <input type="date" id="actSingleDate" required onchange="handleSingleDateChange()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium">
+                        </div>
+
+                        <!-- Multi-Day Container -->
+                        <div id="multiDateContainer" class="space-y-3 hidden">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-700 mb-1">起始日期 <span class="text-rose-500">*</span></label>
+                                    <input type="date" id="actStartDate" onchange="handleStartDateChange()" class="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-700 mb-1">結束日期 <span class="text-rose-500">*</span></label>
+                                    <input type="date" id="actEndDate" onchange="handleDateRangeOrWeekdayChange()" class="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs">
+                                </div>
+                            </div>
+
+                            <div class="bg-white p-2.5 rounded-xl border border-blue-100 space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <label class="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                                        <i class="fa-solid fa-rotate text-emerald-600"></i> 重複逢星期幾：
+                                    </label>
+                                    <div class="flex items-center space-x-1.5 text-[10px]">
+                                        <button type="button" onclick="setWeekdaysPreset('weekdays')" class="text-blue-600 hover:underline font-semibold">平日(一至五)</button>
+                                        <span class="text-slate-300">|</span>
+                                        <button type="button" onclick="setWeekdaysPreset('all')" class="text-blue-600 hover:underline font-semibold">全選</button>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-7 gap-1 text-center">
+                                    <label class="cursor-pointer bg-slate-50 hover:bg-blue-50 p-1 rounded-lg border border-slate-200 flex flex-col items-center">
+                                        <span class="text-[10px] font-bold text-rose-500">日</span>
+                                        <input type="checkbox" name="actWeekday" value="0" onchange="handleDateRangeOrWeekdayChange()" class="w-3.5 h-3.5 text-blue-600 rounded">
+                                    </label>
+                                    <label class="cursor-pointer bg-slate-50 hover:bg-blue-50 p-1 rounded-lg border border-slate-200 flex flex-col items-center">
+                                        <span class="text-[10px] font-bold text-slate-700">一</span>
+                                        <input type="checkbox" name="actWeekday" value="1" checked onchange="handleDateRangeOrWeekdayChange()" class="w-3.5 h-3.5 text-blue-600 rounded">
+                                    </label>
+                                    <label class="cursor-pointer bg-slate-50 hover:bg-blue-50 p-1 rounded-lg border border-slate-200 flex flex-col items-center">
+                                        <span class="text-[10px] font-bold text-slate-700">二</span>
+                                        <input type="checkbox" name="actWeekday" value="2" checked onchange="handleDateRangeOrWeekdayChange()" class="w-3.5 h-3.5 text-blue-600 rounded">
+                                    </label>
+                                    <label class="cursor-pointer bg-slate-50 hover:bg-blue-50 p-1 rounded-lg border border-slate-200 flex flex-col items-center">
+                                        <span class="text-[10px] font-bold text-slate-700">三</span>
+                                        <input type="checkbox" name="actWeekday" value="3" checked onchange="handleDateRangeOrWeekdayChange()" class="w-3.5 h-3.5 text-blue-600 rounded">
+                                    </label>
+                                    <label class="cursor-pointer bg-slate-50 hover:bg-blue-50 p-1 rounded-lg border border-slate-200 flex flex-col items-center">
+                                        <span class="text-[10px] font-bold text-slate-700">四</span>
+                                        <input type="checkbox" name="actWeekday" value="4" checked onchange="handleDateRangeOrWeekdayChange()" class="w-3.5 h-3.5 text-blue-600 rounded">
+                                    </label>
+                                    <label class="cursor-pointer bg-slate-50 hover:bg-blue-50 p-1 rounded-lg border border-slate-200 flex flex-col items-center">
+                                        <span class="text-[10px] font-bold text-slate-700">五</span>
+                                        <input type="checkbox" name="actWeekday" value="5" checked onchange="handleDateRangeOrWeekdayChange()" class="w-3.5 h-3.5 text-blue-600 rounded">
+                                    </label>
+                                    <label class="cursor-pointer bg-slate-50 hover:bg-blue-50 p-1 rounded-lg border border-slate-200 flex flex-col items-center">
+                                        <span class="text-[10px] font-bold text-amber-600">六</span>
+                                        <input type="checkbox" name="actWeekday" value="6" onchange="handleDateRangeOrWeekdayChange()" class="w-3.5 h-3.5 text-blue-600 rounded">
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Date Preview & Conflict Fine-tuning -->
+                        <div class="bg-white p-3 rounded-xl border border-blue-100 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-slate-800 text-[11px] flex items-center gap-1">
+                                    <i class="fa-solid fa-list-check text-blue-600"></i> 日期預覽與衝突排除：
+                                </span>
+                                <button type="button" id="btnResetExcluded" onclick="resetExcludedDates()" class="hidden text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-lg border border-blue-200 transition flex items-center gap-1">
+                                    <i class="fa-solid fa-rotate-left"></i> 恢復全部日子
+                                </button>
+                            </div>
+
+                            <p class="text-[10px] text-slate-500 leading-snug">
+                                💡 標示 <span class="bg-rose-100 text-rose-700 px-1 py-0.5 rounded border border-rose-300 font-bold">🚫 已封鎖</span> 代表管理員限制；標示 <span class="bg-amber-100 text-amber-800 px-1 py-0.5 rounded border border-amber-300 font-bold">⚠️ 場地衝突</span> 代表其他老師已借用；點擊 <span class="text-rose-500 font-bold bg-rose-50 px-1 rounded border border-rose-200">✕</span> 可手動排除該日。
+                            </p>
+
+                            <div id="datePreviewBox" class="text-[11px] text-slate-500 max-h-40 overflow-y-auto custom-scrollbar pt-1">
+                                請選擇日期...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Time Selection -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="sm:col-span-2 flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200">
+                            <label class="flex items-center font-bold text-slate-700 cursor-pointer text-xs">
+                                <input type="checkbox" id="actAllDay" onchange="toggleTimeInputs(); updateDatePreview();" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 mr-2">
+                                全天活動 (All Day Event)
+                            </label>
+                            <span class="text-[11px] text-slate-400">勾選後無需選擇時間</span>
+                        </div>
+
+                        <div id="startTimeContainer">
+                            <label class="block font-bold text-slate-700 mb-1">開始時間</label>
+                            <input type="time" id="actStartTime" value="09:00" onchange="updateDatePreview()" class="w-full px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+
+                        <div id="endTimeContainer">
+                            <label class="block font-bold text-slate-700 mb-1">結束時間</label>
+                            <input type="time" id="actEndTime" value="12:00" onchange="updateDatePreview()" class="w-full px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Campus Location Block -->
+                    <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label class="block font-bold text-slate-800 text-xs sm:text-sm">
+                                <i class="fa-solid fa-location-dot text-rose-500 mr-1"></i>校內與校外地點 (可跨樓層多選) <span class="text-rose-500">*</span>
+                            </label>
+                            <span class="text-[10px] text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded-full">支援跨樓層 / 全校</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 bg-slate-200/70 p-1 rounded-xl border border-slate-300/60">
+                            <button type="button" id="btnLocOnCampus" onclick="switchLocationType('onCampus')" class="py-1.5 text-xs font-bold rounded-lg transition bg-blue-600 text-white shadow-xs flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-school text-blue-200"></i> 校內地點 (含樓層多選)
+                            </button>
+                            <button type="button" id="btnLocOffCampus" onclick="switchLocationType('offCampus')" class="py-1.5 text-xs font-bold rounded-lg transition bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-bus text-amber-500"></i> 校外地點
+                            </button>
+                        </div>
+
+                        <!-- On Campus Selector -->
+                        <div id="onCampusLocContainer" class="space-y-2.5">
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-700 mb-1">1. 選擇樓層 / 類別：</label>
+                                <select id="actFloorSelect" onchange="renderVenuePillsForAct()" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs font-bold text-slate-700">
+                                    <option value="地下">地下 (G/F) - 操場/足球場/會議室/演講廳等</option>
+                                    <option value="一樓">一樓 (1/F) - 課室/活動中心/陳鴻琛堂/English Wonderland等</option>
+                                    <option value="二樓">二樓 (2/F) - 課室/圖書館/靜觀室/創意科技中心等</option>
+                                    <option value="三樓">三樓 (3/F) - 課室/音樂室/視藝室/電視台/電腦室等</option>
+                                    <option value="四樓">四樓 (4/F) - 課室/禮堂/中國文化軒等</option>
+                                    <option value="五樓">五樓 (5/F) - 課室/三學坊等</option>
+                                    <option value="六樓">六樓 (6/F) - 課室/綠悠天地等</option>
+                                    <option value="七樓">七樓 (7/F) - 教研室/籃球場C/長枱/圓枱等</option>
+                                    <option value="全校">全校 (Whole School) - 佔用全校設施</option>
+                                </select>
+                            </div>
+
+                            <div id="actVenuePillsWrapper">
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="text-[11px] font-bold text-slate-700">2. 點擊選擇場地 (可多選)：</label>
+                                    <button type="button" id="btnSelectAllFloorAct" onclick="selectAllCurrentFloorAct()" class="text-[10px] text-blue-600 font-bold hover:underline">全選此樓層</button>
+                                </div>
+                                <div id="actVenuePillsContainer" class="flex flex-wrap gap-1.5 p-2 bg-white rounded-xl border border-slate-200 max-h-48 overflow-y-auto custom-scrollbar">
+                                </div>
+                            </div>
+
+                            <!-- Floor Specific Custom Venue Box -->
+                            <div id="actCustomLocBox" class="bg-blue-50/70 p-2.5 rounded-xl border border-blue-200 space-y-1">
+                                <label class="block text-[11px] font-bold text-blue-900">
+                                    <i class="fa-solid fa-pen-to-square mr-1"></i>其他地方 (自訂輸入)：
+                                </label>
+                                <div class="flex gap-1.5">
+                                    <input type="text" id="actCustomLocInput" placeholder="例如：天台花園 / 舊翼游泳池 / 某特殊室" class="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs">
+                                    <button type="button" onclick="addCustomActLocation()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1 shrink-0">
+                                        <i class="fa-solid fa-plus"></i> 新增場地
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Selected Chips Box -->
+                            <div class="bg-slate-100 p-2.5 rounded-xl border border-slate-200 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                                        <i class="fa-solid fa-check-double text-blue-600"></i> 已選擇的地點 (<span id="actSelectedCount">0</span> 個)：
+                                    </span>
+                                    <button type="button" onclick="clearAllActLocations()" class="text-[10px] font-bold text-rose-600 hover:underline">清空選擇</button>
+                                </div>
+                                <div id="actSelectedChipsBox" class="flex flex-wrap gap-1.5 min-h-[28px] pt-1">
+                                    <span class="text-slate-400 text-[11px] italic">尚未選擇任何場地</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Off Campus Input -->
+                        <div id="offCampusLocContainer" class="hidden">
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">校外地點名稱：</label>
+                            <input type="text" id="actOffCampusInput" oninput="updateDatePreview()" placeholder="例如：沙田運動場 / 香港科學館 / 烏溪沙青年新村" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium">
+                        </div>
+                    </div>
+
+                    <!-- Target Grades -->
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1.5">
+                            <i class="fa-solid fa-graduation-cap text-indigo-500 mr-1"></i>涉及年級 (小一至小六)
+                        </label>
+                        <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                            <label class="flex items-center justify-center p-1.5 bg-white rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:bg-blue-50">
+                                <input type="checkbox" name="actGrade" value="小一" class="mr-1 text-blue-600">小一
+                            </label>
+                            <label class="flex items-center justify-center p-1.5 bg-white rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:bg-blue-50">
+                                <input type="checkbox" name="actGrade" value="小二" class="mr-1 text-blue-600">小二
+                            </label>
+                            <label class="flex items-center justify-center p-1.5 bg-white rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:bg-blue-50">
+                                <input type="checkbox" name="actGrade" value="小三" class="mr-1 text-blue-600">小三
+                            </label>
+                            <label class="flex items-center justify-center p-1.5 bg-white rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:bg-blue-50">
+                                <input type="checkbox" name="actGrade" value="小四" class="mr-1 text-blue-600">小四
+                            </label>
+                            <label class="flex items-center justify-center p-1.5 bg-white rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:bg-blue-50">
+                                <input type="checkbox" name="actGrade" value="小五" class="mr-1 text-blue-600">小五
+                            </label>
+                            <label class="flex items-center justify-center p-1.5 bg-white rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:bg-blue-50">
+                                <input type="checkbox" name="actGrade" value="小六" class="mr-1 text-blue-600">小六
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Participants & Teacher -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">
+                                <i class="fa-solid fa-users text-emerald-500 mr-1"></i>涉及人數
+                            </label>
+                            <input type="number" id="actParticipants" min="1" placeholder="例如：35" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">
+                                <i class="fa-solid fa-user-tie text-purple-500 mr-1"></i>負責老師 <span class="text-rose-500">*</span>
+                            </label>
+                            <input type="text" id="actTeacher" required placeholder="例如：張主任 / 陳老師" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">
+                            <i class="fa-solid fa-note-sticky text-amber-500 mr-1"></i>活動備註 / 細節
+                        </label>
+                        <textarea id="actNotes" rows="2" placeholder="可填寫學生需帶物品、集合注意事項等..." class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="btnSubmitAct" class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-2xl shadow-md hover:shadow-lg transition transform active:scale-[0.99] flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-up text-lg"></i> 提交活動紀錄 (實時雲端同步)
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Right List & Admin Panel (7 Cols) -->
+        <section class="lg:col-span-7 bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-200 flex flex-col justify-between min-h-[650px] h-full">
+            <div class="flex flex-col flex-grow">
+                
+                <!-- Header Stats -->
+                <div class="flex flex-wrap items-center justify-between pb-4 mb-4 border-b border-slate-100 gap-2 shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-6 bg-emerald-500 rounded-full" id="listStatusIndicator"></span>
+                        <h2 class="text-lg font-bold text-slate-800" id="listTitle">全校登記紀錄列表</h2>
+                        <span id="activityCountBadge" class="bg-blue-100 text-blue-700 font-black text-xs px-2.5 py-0.5 rounded-full">0 項</span>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <!-- Batch Approve Button -->
+                        <button onclick="markAllPendingAsUpdated()" id="btnBatchApprove" class="hidden px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition flex items-center gap-1.5 shadow-md transform active:scale-95">
+                            <i class="fa-solid fa-check-double text-amber-300"></i> 一鍵審批待更新行程
+                        </button>
+                        <!-- Admin Clear All Data Button -->
+                        <button onclick="clearAllDataWithConfirm()" id="btnClearAllData" class="hidden px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition flex items-center gap-1.5 shadow-md transform active:scale-95">
+                            <i class="fa-solid fa-trash-can"></i> 一鍵清除所有資料
+                        </button>
+                        <!-- Admin One-Click Restore Data Button -->
+                        <button onclick="restoreDataFromBackup()" id="btnRestoreData" class="hidden px-3 py-1.5 text-xs font-bold text-slate-800 bg-amber-400 hover:bg-amber-500 rounded-xl transition flex items-center gap-1.5 shadow-md transform active:scale-95">
+                            <i class="fa-solid fa-rotate-left"></i> 一鍵回復
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Admin Tabs (Visible only in Admin Mode) -->
+                <div id="adminTabBar" class="hidden mb-3 p-1 bg-slate-100 rounded-2xl flex flex-wrap sm:flex-nowrap items-center gap-1 border border-slate-200 shrink-0">
+                    <button type="button" onclick="switchAdminTab('pending')" id="tabBtnPending" class="flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-purple-600 text-white shadow-xs">
+                        <i class="fa-solid fa-clock-rotate-left text-amber-300"></i> 未更新行程
+                        <span id="pendingBadge" class="bg-amber-400 text-slate-900 text-[10px] px-1.5 py-0.2 rounded-full font-black">0</span>
+                    </button>
+                    <button type="button" onclick="switchAdminTab('master')" id="tabBtnMaster" class="flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-600 hover:bg-white/60">
+                        <i class="fa-solid fa-box-archive"></i> 全校行程總覽
+                        <span id="masterBadge" class="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0.2 rounded-full font-black">0</span>
+                    </button>
+                    <button type="button" onclick="switchAdminTab('blocked')" id="tabBtnBlocked" class="flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-rose-700 hover:bg-white/60">
+                        <i class="fa-solid fa-ban text-rose-500"></i> 日期封鎖設定
+                        <span id="blockedBadge" class="bg-rose-100 text-rose-800 text-[10px] px-1.5 py-0.2 rounded-full font-black">0</span>
+                    </button>
+                </div>
+
+                <!-- Search & Filters (Visible only in Admin Mode) -->
+                <div id="adminSearchFilterBar" class="hidden mb-4 bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2 shrink-0">
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs font-bold text-slate-600 flex items-center gap-1">
+                            <i class="fa-solid fa-filter text-blue-600"></i> 行程快速搜尋：
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="handleSheetConfigClick()" class="text-[11px] font-bold text-emerald-700 hover:underline flex items-center gap-1">
+                                <i class="fa-solid fa-table text-emerald-600"></i> 查看 Google Sheet 資料庫
+                            </button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input type="text" id="searchInput" oninput="renderActivities()" placeholder="搜尋活動名稱 / 負責老師 / 地點..." class="px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                        <select id="gradeFilter" onchange="renderActivities()" class="px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                            <option value="ALL">全部涉及年級</option>
+                            <option value="小一">小一</option>
+                            <option value="小二">小二</option>
+                            <option value="小三">小三</option>
+                            <option value="小四">小四</option>
+                            <option value="小五">小五</option>
+                            <option value="小六">小六</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Activity List Container -->
+                <div id="activityListContainer" class="space-y-3 max-h-[calc(100vh-280px)] min-h-[420px] overflow-y-auto pr-1 custom-scrollbar flex-grow">
+                </div>
+            </div>
+
+            <!-- Export Footer -->
+            <div class="mt-6 pt-4 border-t border-slate-100 shrink-0">
+                <div id="teacherFooter" class="bg-blue-50/70 p-4 rounded-2xl border border-blue-200 flex items-center justify-between gap-3">
+                    <div class="text-xs text-slate-600">
+                        <p class="font-bold text-blue-900 flex items-center gap-1">
+                            <i class="fa-solid fa-shield-check text-emerald-500"></i> 雲端中央紀錄庫已防護：
+                        </p>
+                        <p class="text-[11px] text-slate-500 mt-0.5">所有登記數據均實時寫入雲端 Google Sheet，自動預防全校跨老師之檔期重疊。</p>
+                    </div>
+                </div>
+
+                <div id="adminFooter" class="hidden bg-slate-900 text-white p-4 sm:p-5 rounded-2xl shadow-md border border-slate-800 space-y-3">
+                    <div>
+                        <div class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-excel text-emerald-400 text-lg"></i>
+                            管理員一鍵匯出與備份檔：
+                        </div>
+                        <p class="text-[11px] text-slate-300 mt-0.5">可將全校行程匯出為 Excel 總表 (.xlsx) 或僅匯出未審批項目的 CSV 日曆檔 (.csv)。</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        <button onclick="exportExcelXLSX()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow transition text-xs flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-file-excel text-base"></i> 下載 全校活動總表 (.xlsx)
+                        </button>
+
+                        <button onclick="exportGoogleCalCSV()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow transition text-xs flex items-center justify-center gap-2" title="僅匯出待更新/未審批的項目">
+                            <i class="fa-solid fa-calendar-day text-base"></i> 下載 未審批項目 CSV (googleCal.csv)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Google Sheet Central Modal -->
+    <div id="googleSheetModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 border border-slate-100 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onclick="closeGoogleSheetModal()" class="absolute top-4 right-4 w-8 h-8 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-full flex items-center justify-center transition">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div class="flex items-center space-x-3">
+                <div class="bg-emerald-100 text-emerald-700 p-3 rounded-2xl">
+                    <i class="fa-solid fa-file-csv text-2xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-lg font-black text-slate-800">Google Sheet 雲端中央紀錄庫設定</h3>
+                        <span class="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black px-2 py-0.5 rounded-md">
+                            <i class="fa-solid fa-circle-check mr-1"></i>已成功寫死連結
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-500">系統已綁定專用 Google 試算表與 Web App 網址 (管理員權限專用)。</p>
+                </div>
+            </div>
+
+            <div class="space-y-4 text-xs">
+                <!-- Direct Google Sheet Link -->
+                <div class="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 flex items-center justify-between gap-2">
+                    <div>
+                        <p class="font-bold text-amber-900"><i class="fa-solid fa-table text-emerald-600 mr-1"></i> 雲端中央試算表 (Google Sheet)：</p>
+                        <p class="text-[11px] text-amber-700 mt-0.5">點擊右側按鈕直接在 Google Drive 中檢視或編輯原始紀錄檔。</p>
+                    </div>
+                    <a href="https://docs.google.com/spreadsheets/d/1-MxhA0ApdghKUEMGenFXx6UF--RaKqixPVWWLbrZYQU/edit?usp=drive_link" target="_blank" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition text-xs shrink-0 flex items-center gap-1 shadow-sm">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> 開啟試算表
+                    </a>
+                </div>
+
+                <!-- Web App URL Input -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                    <label class="block font-bold text-slate-800">
+                        <i class="fa-solid fa-link text-emerald-600 mr-1"></i> Google Apps Script Web App URL 網址：
+                    </label>
+                    <div class="flex gap-2">
+                        <input type="url" id="inputAppsScriptUrl" oninput="handleSheetUrlInput()" placeholder="https://script.google.com/macros/s/.../exec" class="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-xs">
+                        <button type="button" onclick="saveAndTestGoogleSheetUrl()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition flex items-center gap-1 shrink-0 shadow-sm">
+                            <i class="fa-solid fa-cloud-check"></i> 測試並更新連線
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] pt-1">
+                        <p id="sheetApiStatusMsg" class="font-bold text-emerald-600">目前狀態：已連線至雲端後端</p>
+                    </div>
+                </div>
+
+                <!-- GAS Apps Script Code Sample Box -->
+                <div class="bg-slate-900 text-slate-200 p-4 rounded-2xl border border-slate-800 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-amber-400 flex items-center gap-1">
+                            <i class="fa-solid fa-code"></i> Google Apps Script 後端最新程式碼 (含修復版 ID 與審批邏輯)
+                        </span>
+                        <button type="button" onclick="copyAppsScriptCode()" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[11px] transition flex items-center gap-1">
+                            <i class="fa-solid fa-copy"></i> 複製後端程式碼
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-slate-400">⚠️ 請複製下方最新程式碼，貼入 Google Sheet 的 Apps Script 中，並發布為<b>「新版本」</b>：</p>
+                    <textarea id="appsScriptCodeArea" readonly rows="7" class="w-full p-2.5 bg-slate-950 text-emerald-400 font-mono text-[10px] rounded-xl border border-slate-800 outline-none resize-none custom-scrollbar">function doGet(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+  }
+  var result = [];
+  var timeZone = Session.getScriptTimeZone() || "GMT+8";
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row[0] && row[0] !== 0) continue;
+    
+    var datesArr = [];
+    try {
+      if (typeof row[2] === 'string' && row[2].indexOf('[') === 0) {
+        datesArr = JSON.parse(row[2]);
+      } else if (row[2] instanceof Date) {
+        datesArr = [Utilities.formatDate(row[2], timeZone, "yyyy-MM-dd")];
+      } else if (row[2]) {
+        datesArr = String(row[2]).split(',');
+      }
+    } catch(err) {
+      datesArr = [String(row[2])];
+    }
+
+    var locsArr = [], gradesArr = [];
+    try { locsArr = typeof row[6] === 'string' && row[6].indexOf('[')===0 ? JSON.parse(row[6]) : String(row[6]).split(','); } catch(e) { locsArr = [String(row[6])]; }
+    try { gradesArr = typeof row[7] === 'string' && row[7].indexOf('[')===0 ? JSON.parse(row[7]) : String(row[7]).split(','); } catch(e) { gradesArr = [String(row[7])]; }
+
+    var startTimeStr = String(row[3] || '09:00');
+    if (row[3] instanceof Date) {
+      startTimeStr = Utilities.formatDate(row[3], timeZone, "HH:mm");
+    }
+    var endTimeStr = String(row[4] || '12:00');
+    if (row[4] instanceof Date) {
+      endTimeStr = Utilities.formatDate(row[4], timeZone, "HH:mm");
+    }
+
+    result.push({
+      id: String(row[0]).replace(/^'/, '').trim(),
+      title: String(row[1] || ''),
+      dates: datesArr,
+      startTime: startTimeStr,
+      endTime: endTimeStr,
+      allDay: row[5] === true || String(row[5]).toUpperCase() === 'TRUE',
+      locations: locsArr,
+      grades: gradesArr,
+      participants: Number(row[8]) || 0,
+      teacher: String(row[9] || ''),
+      notes: String(row[10] || ''),
+      status: String(row[11] || 'pending').trim(),
+      createdAt: String(row[12] || '')
+    });
+  }
+  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  var lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(["ID", "活動名稱", "日期(JSON)", "開始時間", "結束時間", "全天活動", "地點(JSON)", "涉及年級(JSON)", "人數", "負責老師", "備註", "狀態", "建立時間"]);
+    }
+    var request = JSON.parse(e.postData.contents);
+    var action = request.action;
+    var data = request.data;
+
+    if (action === 'add') {
+      sheet.appendRow([
+        "'" + String(data.id), data.title, JSON.stringify(data.dates || []), data.startTime || '09:00', data.endTime || '12:00',
+        data.allDay ? true : false, JSON.stringify(data.locations || []), JSON.stringify(data.grades || []),
+        data.participants || 0, data.teacher || '', data.notes || '', data.status || 'pending', data.createdAt || new Date().toISOString()
+      ]);
+    } else if (action === 'batchAdd') {
+      var items = Array.isArray(data) ? data : [data];
+      for (var k = 0; k < items.length; k++) {
+        var item = items[k];
+        sheet.appendRow([
+          "'" + String(item.id), item.title, JSON.stringify(item.dates || []), item.startTime || '09:00', item.endTime || '12:00',
+          item.allDay ? true : false, JSON.stringify(item.locations || []), JSON.stringify(item.grades || []),
+          item.participants || 0, item.teacher || '', item.notes || '', item.status || 'pending', item.createdAt || new Date().toISOString()
+        ]);
+      }
+    } else if (action === 'batchApprove') {
+      var values = sheet.getDataRange().getValues();
+      for (var i = 1; i < values.length; i++) {
+        var currentStatus = String(values[i][11] || '').toLowerCase().trim();
+        if (currentStatus === 'pending' || currentStatus === '') {
+          sheet.getRange(i + 1, 12).setValue('updated');
+        }
+      }
+    } else if (action === 'update') {
+      var values = sheet.getDataRange().getValues();
+      var targetId = String(data.id || request.id || '').replace(/^'/, '').trim();
+      for (var i = 1; i < values.length; i++) {
+        var rowId = String(values[i][0] || '').replace(/^'/, '').trim();
+        if (rowId === targetId) {
+          sheet.getRange(i + 1, 2).setValue(data.title);
+          sheet.getRange(i + 1, 3).setValue(JSON.stringify(data.dates || []));
+          sheet.getRange(i + 1, 4).setValue(data.startTime || '09:00');
+          sheet.getRange(i + 1, 5).setValue(data.endTime || '12:00');
+          sheet.getRange(i + 1, 6).setValue(data.allDay ? true : false);
+          sheet.getRange(i + 1, 7).setValue(JSON.stringify(data.locations || []));
+          sheet.getRange(i + 1, 8).setValue(JSON.stringify(data.grades || []));
+          sheet.getRange(i + 1, 9).setValue(data.participants || 0);
+          sheet.getRange(i + 1, 10).setValue(data.teacher || '');
+          sheet.getRange(i + 1, 11).setValue(data.notes || '');
+          sheet.getRange(i + 1, 12).setValue(data.status || 'updated');
+          break;
+        }
+      }
+    } else if (action === 'delete') {
+      var values = sheet.getDataRange().getValues();
+      var targetId = String(request.id || (data && data.id) || '').replace(/^'/, '').trim();
+      for (var i = 1; i < values.length; i++) {
+        var rowId = String(values[i][0] || '').replace(/^'/, '').trim();
+        if (rowId === targetId) {
+          sheet.deleteRow(i + 1);
+          break;
+        }
+      }
+    } else if (action === 'clearAll') {
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: error.toString() })).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}</textarea>
+                </div>
+            </div>
+
+            <button onclick="closeGoogleSheetModal()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition">
+                關閉設定視窗
+            </button>
+        </div>
+    </div>
+
+    <!-- Admin Password Prompt Modal -->
+    <div id="passwordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-purple-100 text-center relative">
+            <button onclick="closePasswordModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold">✕</button>
+            <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+            <div>
+                <h3 class="text-base font-bold text-slate-800">切換至管理員專區</h3>
+                <p class="text-xs text-slate-500 mt-1">請輸入管理員密碼</p>
+            </div>
+            <input type="password" id="inputAdminPassword" placeholder="輸入密碼" onkeydown="if(event.key==='Enter') verifyAdminPassword()" class="w-full px-3 py-2 text-center border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-sm font-mono">
+            <p id="passwordErrorMsg" class="text-xs text-rose-500 font-bold hidden">密碼不正確，請重新輸入</p>
+            <div class="flex gap-2">
+                <button onclick="closePasswordModal()" class="flex-1 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-200">取消</button>
+                <button onclick="verifyAdminPassword()" class="flex-1 py-2 bg-purple-600 text-white font-bold text-xs rounded-xl hover:bg-purple-700 shadow">確認進入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Instruction Modal -->
+    <div id="helpModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 border border-slate-100 relative max-h-[85vh] overflow-y-auto custom-scrollbar">
+            <button onclick="closeHelpModal()" class="absolute top-4 right-4 w-8 h-8 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-full flex items-center justify-center">✕</button>
+            <div class="flex items-center space-x-3 border-b border-slate-100 pb-3">
+                <div class="bg-blue-100 text-blue-600 p-2.5 rounded-2xl">
+                    <i class="fa-solid fa-circle-question text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">全方位活動紀錄 - 使用說明</h3>
+                    <p class="text-xs text-slate-500">檔期防護、樓層場地與 Google Sheet 自動寫死機制</p>
+                </div>
+            </div>
+            <div class="space-y-3 text-xs text-slate-600 leading-relaxed">
+                <div class="bg-blue-50 p-3 rounded-2xl border border-blue-100">
+                    <h4 class="font-bold text-blue-900 mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-cloud text-blue-600"></i> 1. Google Sheet 雲端中央紀錄庫已寫死
+                    </h4>
+                    <p>網頁已經寫死對應之 Google Sheet Web App 網址，放置於 Google Sites 後全校老師可直接存取與自動防衝突。</p>
+                </div>
+
+                <div class="bg-purple-50 p-3 rounded-2xl border border-purple-100">
+                    <h4 class="font-bold text-purple-900 mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-building text-purple-600"></i> 2. 校內地下至七樓設施
+                    </h4>
+                    <p>涵蓋地下操場/演講廳、一至六樓課室/特別室 (如 English Wonderland, 靜觀室, 三學坊) 以及七樓教研室/籃球場C等，並支援自訂場地輸入。</p>
+                </div>
+
+                <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-100">
+                    <h4 class="font-bold text-emerald-900 mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-wand-magic-sparkles text-emerald-600"></i> 3. 日期與時間防亂碼解析
+                    </h4>
+                    <p>具備強效的自動格式清理算法，在匯入 Excel 或從 Sheet 讀取時，自動修正 ISO 時間或數字序列，保障格式一致。</p>
+                </div>
+            </div>
+            <button onclick="closeHelpModal()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition">了解並開始使用</button>
+        </div>
+    </div>
+
+    <!-- Application JavaScript Logic -->
+    <script>
+        // HARDCODED GOOGLE SHEET WEB APP URL
+        const DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxmYurk-c2ErdIlW2d0ZtFzTXYm4-ABWycq9ITua55na_Eu5Q9BSOHHTme-XDrLU-Fa/exec";
+
+        // Global State
+        window.appState = {
+            activities: [],
+            activityBackup: [],
+            blockedDates: [],
+            googleSheetUrl: DEFAULT_WEB_APP_URL,
+            adminPassword: 'admin123',
+            currentRole: 'teacher',
+            adminTab: 'pending',
+            eventMode: 'single',
+            locationType: 'onCampus',
+            selectedActLocations: [],
+            excludedDates: []
+        };
+
+        // EXPOSED CAMPUS VENUES
+        window.campusVenues = {
+            "地下": ["地下有蓋操場", "足球場", "跑道", "會議室", "演講廳", "籃球場A", "籃球場B", "露天劇場"],
+            "一樓": ["1A課室", "1B課室", "1C課室", "1D課室", "1E課室", "ENGLISH WONDERLAND(in)", "ENGLISH WONDERLAND(out)", "活動中心A", "活動中心B", "陳鴻琛堂"],
+            "二樓": ["2A課室", "2B課室", "2C課室", "2D課室", "2E課室", "創意科技活動中心", "智趣數學園", "電子琴室", "圖書館", "靜觀室"],
+            "三樓": ["3A課室", "3B課室", "3C課室", "3D課室", "3E課室", "音樂室", "視覺藝術室", "電視台(in)", "電視台(out)", "電腦室A", "電腦室B"],
+            "四樓": ["4A課室", "4B課室", "4C課室", "4D課室", "4E課室", "中國文化軒", "禮堂"],
+            "五樓": ["5A課室", "5B課室", "5C課室", "5D課室", "5E課室", "三學坊"],
+            "六樓": ["6A課室", "6B課室", "6C課室", "6D課室", "6E課室", "綠悠天地"],
+            "七樓": ["教研室", "籃球場C", "長枱", "圓枱"],
+            "全校": ["全校所有場地 (Whole School Campus)"]
+        };
+
+        function saveBlockedDatesToStorage() {
+            try {
+                localStorage.setItem('school_blocked_dates', JSON.stringify(window.appState.blockedDates));
+            } catch(e) {
+                console.warn("Save blocked dates error:", e);
+            }
+        }
+
+        function loadBlockedDatesFromStorage() {
+            try {
+                const saved = localStorage.getItem('school_blocked_dates');
+                if (saved) {
+                    window.appState.blockedDates = JSON.parse(saved);
+                }
+            } catch(e) {
+                console.warn("Load blocked dates error:", e);
+            }
+        }
+
+        function formatYMD(d) {
+            if (!(d instanceof Date) || isNaN(d.getTime())) return '';
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function parseExcelTime(val, defaultTime = '09:00') {
+            if (val === undefined || val === null || val === '') return defaultTime;
+            if (typeof val === 'number') {
+                let timeNum = val % 1;
+                if (timeNum < 0) timeNum += 1;
+                const totalMinutes = Math.round(timeNum * 24 * 60);
+                const hours = Math.floor(totalMinutes / 60);
+                const minutes = totalMinutes % 60;
+                return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            }
+            let str = String(val).trim();
+            const ampmMatch = str.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)/i);
+            if (ampmMatch) {
+                let h = parseInt(ampmMatch[1], 10);
+                const m = ampmMatch[2];
+                const isPm = ampmMatch[3].toUpperCase() === 'PM';
+                if (isPm && h < 12) h += 12;
+                if (!isPm && h === 12) h = 0;
+                return `${String(h).padStart(2, '0')}:${m}`;
+            }
+            if (str.includes('T')) {
+                const d = new Date(str);
+                if (!isNaN(d.getTime())) {
+                    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                }
+            }
+            const match = str.match(/(\d{1,2}):(\d{2})/);
+            if (match) {
+                return `${String(match[1]).padStart(2, '0')}:${match[2]}`;
+            }
+            return defaultTime;
+        }
+
+        function parseExcelDate(val) {
+            if (!val && val !== 0) return [];
+            if (Array.isArray(val)) return val.map(parseExcelDate).flat().filter(Boolean);
+            if (val instanceof Date) return [formatYMD(val)];
+            
+            if (typeof val === 'number' || (!isNaN(val) && Number(val) > 30000 && Number(val) < 70000)) {
+                const num = Number(val);
+                const jsDate = new Date((Math.floor(num) - (25567 + 2)) * 86400 * 1000);
+                return [formatYMD(jsDate)];
+            }
+            
+            let str = String(val).trim();
+            if (str.startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(str);
+                    return parseExcelDate(parsed);
+                } catch(e) {}
+            }
+            if (str.includes(',')) {
+                return str.split(',').map(s => parseExcelDate(s)).flat().filter(Boolean);
+            }
+            if (str.includes('T')) {
+                const parts = str.split('T');
+                if (parts[0] && parts[0].length === 10) return [parts[0]];
+            }
+            const matchYMD = str.match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+            if (matchYMD) {
+                return [`${matchYMD[1]}-${String(matchYMD[2]).padStart(2,'0')}-${String(matchYMD[3]).padStart(2,'0')}`];
+            }
+            const matchDMY = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+            if (matchDMY) {
+                return [`${matchDMY[3]}-${String(matchDMY[2]).padStart(2,'0')}-${String(matchDMY[1]).padStart(2,'0')}`];
+            }
+            return [str];
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const singleDateInput = document.getElementById('actSingleDate');
+            if (singleDateInput) singleDateInput.value = todayStr;
+            const startDateInput = document.getElementById('actStartDate');
+            const endDateInput = document.getElementById('actEndDate');
+            if (startDateInput) startDateInput.value = todayStr;
+            if (endDateInput) endDateInput.value = todayStr;
+
+            const savedUrl = localStorage.getItem('apps_script_url');
+            if (savedUrl) window.appState.googleSheetUrl = savedUrl;
+
+            const urlInput = document.getElementById('inputAppsScriptUrl');
+            if (urlInput) urlInput.value = window.appState.googleSheetUrl;
+
+            loadBlockedDatesFromStorage();
+            renderVenuePillsForAct();
+            setRole('teacher');
+            syncDataFromGoogleSheet();
+        });
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' ? 'bg-emerald-600' : (type === 'error' ? 'bg-rose-600' : 'bg-slate-800');
+            const iconClass = type === 'success' ? 'fa-circle-check' : (type === 'error' ? 'fa-triangle-exclamation' : 'fa-info-circle');
+
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold transition transform translate-y-2 opacity-0 pointer-events-auto max-w-sm`;
+            toast.innerHTML = `<i class="fa-solid ${iconClass} text-base"></i><span>${msg}</span>`;
+
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function handleSheetConfigClick() {
+            if (window.appState.currentRole !== 'admin') {
+                showToast('【開啟 Google Sheet 資料庫】僅供管理員存取！', 'error');
+                openPasswordModal();
+                return;
+            }
+            openGoogleSheetModal();
+        }
+
+        async function syncDataFromGoogleSheet(isManual = false) {
+            const url = window.appState.googleSheetUrl;
+            if (!url) return;
+
+            const spinIcon = document.getElementById('syncSpinIcon');
+            if (spinIcon) spinIcon.classList.add('fa-spin');
+
+            try {
+                const res = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=get&t=' + Date.now());
+                if (res.ok) {
+                    const sheetData = await res.json();
+                    if (Array.isArray(sheetData)) {
+                        window.appState.activities = sheetData.map(item => ({
+                            ...item,
+                            id: String(item.id).replace(/^'/, '').trim(),
+                            dates: parseExcelDate(item.dates),
+                            startTime: parseExcelTime(item.startTime, '09:00'),
+                            endTime: parseExcelTime(item.endTime, '12:00'),
+                            participants: Number(item.participants) || 0,
+                            status: String(item.status || 'pending').trim()
+                        }));
+                        renderActivities();
+                        updateBadges();
+                        updateDatePreview();
+                        if (isManual) showToast('已成功從雲端中央紀錄庫同步最新資料！', 'success');
+                    }
+                }
+            } catch (err) {
+                console.warn("Sync Google Sheet Notice:", err);
+                if (isManual) showToast('無法連線至雲端紀錄庫，請確認網路或連結狀態', 'error');
+            } finally {
+                if (spinIcon) spinIcon.classList.remove('fa-spin');
+            }
+        }
+
+        async function postToGoogleSheet(action, payload) {
+            const url = window.appState.googleSheetUrl;
+            if (!url) return;
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: action, data: payload, id: payload ? payload.id : null })
+                });
+            } catch (e) {
+                console.warn("GAS Post error:", e);
+            }
+        }
+
+        function manualSyncCloud() { syncDataFromGoogleSheet(true); }
+
+        function triggerFileInput() {
+            document.getElementById('importFileInput').click();
+        }
+
+        async function handleFileImport(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+                    if (!jsonRows || jsonRows.length === 0) {
+                        showToast('匯入檔案內容為空！', 'error');
+                        return;
+                    }
+
+                    const importedItems = [];
+                    const now = new Date().toISOString();
+
+                    jsonRows.forEach((row, idx) => {
+                        const title = row['活動名稱'] || row['Title'] || row['title'] || row['項目名稱'] || '';
+                        if (!title) return;
+
+                        const rawDate = row['日期'] || row['Date'] || row['date'] || row['活動日期'] || '';
+                        const dates = parseExcelDate(rawDate);
+
+                        const startTime = parseExcelTime(row['開始時間'] || row['StartTime'] || row['startTime'] || '09:00', '09:00');
+                        const endTime = parseExcelTime(row['結束時間'] || row['EndTime'] || row['endTime'] || '12:00', '12:00');
+                        const allDayVal = row['全天活動'] || row['AllDay'] || row['allDay'] || '';
+                        const allDay = String(allDayVal).toUpperCase() === 'TRUE' || allDayVal === true || allDayVal === '是';
+
+                        let locations = [];
+                        const rawLoc = row['地點'] || row['Location'] || row['locations'] || row['場地'] || '';
+                        if (Array.isArray(rawLoc)) locations = rawLoc;
+                        else if (typeof rawLoc === 'string' && rawLoc.startsWith('[')) {
+                            try { locations = JSON.parse(rawLoc); } catch(err) { locations = [rawLoc]; }
+                        } else if (rawLoc) {
+                            locations = String(rawLoc).split(',').map(s => s.trim()).filter(Boolean);
+                        }
+
+                        let grades = [];
+                        const rawGrade = row['涉及年級'] || row['Grades'] || row['grades'] || row['年級'] || '';
+                        if (Array.isArray(rawGrade)) grades = rawGrade;
+                        else if (typeof rawGrade === 'string' && rawGrade.startsWith('[')) {
+                            try { grades = JSON.parse(rawGrade); } catch(err) { grades = [rawGrade]; }
+                        } else if (rawGrade) {
+                            grades = String(rawGrade).split(',').map(s => s.trim()).filter(Boolean);
+                        }
+
+                        const participants = Number(row['人數'] || row['Participants'] || row['participants'] || row['人數(估計)']) || 0;
+                        const teacher = String(row['負責老師'] || row['Teacher'] || row['teacher'] || row['登記人'] || '未指定');
+                        const notes = String(row['備註'] || row['Notes'] || row['notes'] || '');
+                        const status = String(row['狀態'] || row['Status'] || row['status'] || 'pending').trim();
+
+                        importedItems.push({
+                            id: 'ACT-IMP-' + Date.now() + '-' + idx,
+                            title: title,
+                            dates: dates.length > 0 ? dates : [formatYMD(new Date())],
+                            startTime: startTime,
+                            endTime: endTime,
+                            allDay: allDay,
+                            locations: locations.length > 0 ? locations : ['地下 - 操場'],
+                            grades: grades,
+                            participants: participants,
+                            teacher: teacher,
+                            notes: notes,
+                            status: status,
+                            createdAt: now
+                        });
+                    });
+
+                    if (importedItems.length === 0) {
+                        showToast('未能解析到任何有效資料，請檢查 Excel 標題欄位名稱！', 'error');
+                        return;
+                    }
+
+                    window.appState.activities = [...importedItems, ...window.appState.activities];
+                    await postToGoogleSheet('batchAdd', importedItems);
+
+                    showToast(`成功匯入 ${importedItems.length} 項活動，並已寫入 Google Sheet 雲端庫！`, 'success');
+                    renderActivities();
+                    updateBadges();
+                    updateDatePreview();
+
+                } catch (err) {
+                    console.error("Import Error:", err);
+                    showToast('匯入失敗，請確認檔案格式是否正確！', 'error');
+                } finally {
+                    e.target.value = '';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function downloadBlankTemplate() {
+            const data = [
+                {
+                    "活動名稱": "範例：田徑隊晨練",
+                    "日期": "2026-10-20",
+                    "開始時間": "08:00",
+                    "結束時間": "09:00",
+                    "全天活動": "否",
+                    "地點": "地下 - 跑道",
+                    "涉及年級": "小四, 小五, 小六",
+                    "人數": 30,
+                    "負責老師": "張老師",
+                    "備註": "需穿著運動服"
+                }
+            ];
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "活動匯入範本");
+            XLSX.writeFile(wb, "全方位活動紀錄_匯入範本.xlsx");
+        }
+
+        function renderVenuePillsForAct() {
+            const floorSelect = document.getElementById('actFloorSelect');
+            if (!floorSelect) return;
+            const selectedFloor = floorSelect.value;
+            const venues = window.campusVenues[selectedFloor] || [];
+            const container = document.getElementById('actVenuePillsContainer');
+            if (!container) return;
+
+            container.innerHTML = '';
+            venues.forEach(v => {
+                const fullLoc = selectedFloor === '全校' ? v : `${selectedFloor} - ${v}`;
+                const isSelected = window.appState.selectedActLocations.includes(fullLoc);
+                const pill = document.createElement('button');
+                pill.type = 'button';
+                pill.onclick = () => toggleActLocation(fullLoc);
+                pill.className = `px-2.5 py-1 text-xs font-bold rounded-lg transition ${isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`;
+                pill.innerHTML = `${v} ${isSelected ? '<i class="fa-solid fa-check ml-1 text-[10px]"></i>' : ''}`;
+                container.appendChild(pill);
+            });
+            renderSelectedActChips();
+        }
+
+        function toggleActLocation(loc) {
+            const idx = window.appState.selectedActLocations.indexOf(loc);
+            if (idx >= 0) window.appState.selectedActLocations.splice(idx, 1);
+            else window.appState.selectedActLocations.push(loc);
+            renderVenuePillsForAct();
+            updateDatePreview();
+        }
+
+        function selectAllCurrentFloorAct() {
+            const floorSelect = document.getElementById('actFloorSelect');
+            if (!floorSelect) return;
+            const selectedFloor = floorSelect.value;
+            const venues = window.campusVenues[selectedFloor] || [];
+            venues.forEach(v => {
+                const fullLoc = selectedFloor === '全校' ? v : `${selectedFloor} - ${v}`;
+                if (!window.appState.selectedActLocations.includes(fullLoc)) {
+                    window.appState.selectedActLocations.push(fullLoc);
+                }
+            });
+            renderVenuePillsForAct();
+            updateDatePreview();
+        }
+
+        function addCustomActLocation() {
+            const input = document.getElementById('actCustomLocInput');
+            if (!input) return;
+            const val = input.value.trim();
+            if (!val) return;
+            const selectedFloor = document.getElementById('actFloorSelect').value;
+            const customLoc = `${selectedFloor} - ${val}`;
+            if (!window.appState.selectedActLocations.includes(customLoc)) {
+                window.appState.selectedActLocations.push(customLoc);
+            }
+            input.value = '';
+            renderVenuePillsForAct();
+            updateDatePreview();
+        }
+
+        function clearAllActLocations() {
+            window.appState.selectedActLocations = [];
+            renderVenuePillsForAct();
+            updateDatePreview();
+        }
+
+        function renderSelectedActChips() {
+            const countBox = document.getElementById('actSelectedCount');
+            const chipsBox = document.getElementById('actSelectedChipsBox');
+            if (!countBox || !chipsBox) return;
+
+            const locs = window.appState.selectedActLocations;
+            countBox.textContent = locs.length;
+
+            if (locs.length === 0) {
+                chipsBox.innerHTML = '<span class="text-slate-400 text-[11px] italic">尚未選擇任何場地（請從上方點選或輸入）</span>';
+                return;
+            }
+
+            chipsBox.innerHTML = locs.map(l => `
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 rounded-lg text-xs font-bold border border-blue-200">
+                    ${l}
+                    <button type="button" onclick="toggleActLocation('${l}')" class="text-blue-500 hover:text-rose-600 font-bold ml-1">✕</button>
+                </span>
+            `).join('');
+        }
+
+        function switchEventMode(mode) {
+            window.appState.eventMode = mode;
+            window.appState.excludedDates = [];
+            const btnSingle = document.getElementById('btnModeSingle');
+            const btnMulti = document.getElementById('btnModeMulti');
+            const containerSingle = document.getElementById('singleDateContainer');
+            const containerMulti = document.getElementById('multiDateContainer');
+
+            if (mode === 'single') {
+                btnSingle.className = 'flex-1 py-1.5 px-3 text-xs font-bold rounded-xl transition bg-blue-600 text-white shadow-xs flex items-center justify-center gap-1';
+                btnMulti.className = 'flex-1 py-1.5 px-3 text-xs font-bold rounded-xl transition bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-1';
+                containerSingle.classList.remove('hidden');
+                containerMulti.classList.add('hidden');
+            } else {
+                btnMulti.className = 'flex-1 py-1.5 px-3 text-xs font-bold rounded-xl transition bg-blue-600 text-white shadow-xs flex items-center justify-center gap-1';
+                btnSingle.className = 'flex-1 py-1.5 px-3 text-xs font-bold rounded-xl transition bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-1';
+                containerSingle.classList.add('hidden');
+                containerMulti.classList.remove('hidden');
+            }
+            updateDatePreview();
+        }
+
+        function switchLocationType(type) {
+            window.appState.locationType = type;
+            const btnOn = document.getElementById('btnLocOnCampus');
+            const btnOff = document.getElementById('btnLocOffCampus');
+            const containerOn = document.getElementById('onCampusLocContainer');
+            const containerOff = document.getElementById('offCampusLocContainer');
+
+            if (type === 'onCampus') {
+                btnOn.className = 'py-1.5 text-xs font-bold rounded-lg transition bg-blue-600 text-white shadow-xs flex items-center justify-center gap-1';
+                btnOff.className = 'py-1.5 text-xs font-bold rounded-lg transition bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-1';
+                containerOn.classList.remove('hidden');
+                containerOff.classList.add('hidden');
+            } else {
+                btnOff.className = 'py-1.5 text-xs font-bold rounded-lg transition bg-blue-600 text-white shadow-xs flex items-center justify-center gap-1';
+                btnOn.className = 'py-1.5 text-xs font-bold rounded-lg transition bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-1';
+                containerOff.classList.remove('hidden');
+                containerOn.classList.add('hidden');
+            }
+            updateDatePreview();
+        }
+
+        function setWeekdaysPreset(preset) {
+            const checkboxes = document.querySelectorAll('input[name="actWeekday"]');
+            checkboxes.forEach(cb => {
+                const val = parseInt(cb.value);
+                cb.checked = (preset === 'weekdays') ? (val >= 1 && val <= 5) : true;
+            });
+            updateDatePreview();
+        }
+
+        function toggleTimeInputs() {
+            const allDay = document.getElementById('actAllDay').checked;
+            const startBox = document.getElementById('startTimeContainer');
+            const endBox = document.getElementById('endTimeContainer');
+            if (allDay) {
+                startBox.classList.add('opacity-40', 'pointer-events-none');
+                endBox.classList.add('opacity-40', 'pointer-events-none');
+            } else {
+                startBox.classList.remove('opacity-40', 'pointer-events-none');
+                endBox.classList.remove('opacity-40', 'pointer-events-none');
+            }
+        }
+
+        function handleSingleDateChange() { window.appState.excludedDates = []; updateDatePreview(); }
+        function handleStartDateChange() { window.appState.excludedDates = []; updateDatePreview(); }
+        function handleDateRangeOrWeekdayChange() { window.appState.excludedDates = []; updateDatePreview(); }
+        function resetExcludedDates() { window.appState.excludedDates = []; updateDatePreview(); }
+
+        function getSelectedDates() {
+            const mode = window.appState.eventMode;
+            if (mode === 'single') {
+                const val = document.getElementById('actSingleDate').value;
+                return val ? [val] : [];
+            } else {
+                const startStr = document.getElementById('actStartDate').value;
+                const endStr = document.getElementById('actEndDate').value;
+                if (!startStr || !endStr) return [];
+                const start = new Date(startStr);
+                const end = new Date(endStr);
+                if (start > end) return [];
+
+                const selectedWeekdays = Array.from(document.querySelectorAll('input[name="actWeekday"]:checked')).map(cb => parseInt(cb.value));
+                const dateList = [];
+                const curr = new Date(start);
+
+                while (curr <= end) {
+                    if (selectedWeekdays.includes(curr.getDay())) {
+                        dateList.push(formatYMD(curr));
+                    }
+                    curr.setDate(curr.getDate() + 1);
+                }
+                return dateList;
+            }
+        }
+
+        function checkConflicts(dateStr, startTime, endTime, allDay, targetLocs, excludeId = null) {
+            const conflicts = [];
+            if (window.appState.blockedDates.includes(dateStr)) {
+                conflicts.push(`🚫 ${dateStr} 已被全校封鎖`);
+            }
+
+            window.appState.activities.forEach(act => {
+                if (excludeId && String(act.id) === String(excludeId)) return;
+                if (act.dates && act.dates.includes(dateStr)) {
+                    const hasLocConflict = act.locations.some(loc => 
+                        targetLocs.includes(loc) || loc.includes('全校') || targetLocs.some(tl => tl.includes('全校'))
+                    );
+
+                    if (hasLocConflict) {
+                        let timeOverlap = (allDay || act.allDay) ? true : (startTime < act.endTime && endTime > act.startTime);
+                        if (timeOverlap) {
+                            conflicts.push(`⚠️ 與《${act.title}》(${act.teacher}) 在 ${act.locations.join(',')} 重疊 [${act.allDay ? '全天' : act.startTime + '-' + act.endTime}]`);
+                        }
+                    }
+                }
+            });
+
+            return conflicts;
+        }
+
+        function updateDatePreview() {
+            const box = document.getElementById('datePreviewBox');
+            const btnReset = document.getElementById('btnResetExcluded');
+            if (!box) return;
+
+            const dates = getSelectedDates();
+            const startTime = document.getElementById('actStartTime').value;
+            const endTime = document.getElementById('actEndTime').value;
+            const allDay = document.getElementById('actAllDay').checked;
+
+            let targetLocs = [];
+            if (window.appState.locationType === 'onCampus') {
+                targetLocs = window.appState.selectedActLocations;
+            } else {
+                const offVal = document.getElementById('actOffCampusInput').value.trim();
+                if (offVal) targetLocs = [`校外 - ${offVal}`];
+            }
+
+            if (dates.length === 0) {
+                box.innerHTML = '<span class="text-slate-400 italic">請選擇日期...</span>';
+                if (btnReset) btnReset.classList.add('hidden');
+                return;
+            }
+
+            const activeDates = dates.filter(d => !window.appState.excludedDates.includes(d));
+            if (btnReset) {
+                if (window.appState.excludedDates.length > 0) btnReset.classList.remove('hidden');
+                else btnReset.classList.add('hidden');
+            }
+
+            let html = `<div class="space-y-1"><div class="text-[11px] font-bold text-slate-700 pb-1">共符合 <b>${activeDates.length}</b> 天行程：</div>`;
+            dates.forEach(d => {
+                const isExcluded = window.appState.excludedDates.includes(d);
+                const conflicts = checkConflicts(d, startTime, endTime, allDay, targetLocs);
+                const hasConflict = conflicts.length > 0;
+
+                html += `
+                    <div class="flex items-center justify-between p-1.5 rounded-lg border text-xs ${isExcluded ? 'bg-slate-100 border-slate-200 opacity-50 line-through' : (hasConflict ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-slate-50 border-slate-200')}">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="font-bold">${d}</span>
+                            ${hasConflict && !isExcluded ? `<span class="bg-amber-200 text-amber-900 text-[10px] px-1.5 py-0.2 rounded font-bold">${conflicts[0]}</span>` : ''}
+                        </div>
+                        ${!isExcluded ? `
+                            <button type="button" onclick="excludeDate('${d}')" class="text-rose-500 hover:bg-rose-100 px-1.5 py-0.5 rounded font-bold text-[10px] border border-rose-200">✕ 剔除</button>
+                        ` : `
+                            <button type="button" onclick="restoreDate('${d}')" class="text-blue-600 hover:bg-blue-100 px-1.5 py-0.5 rounded font-bold text-[10px] border border-blue-200">恢復</button>
+                        `}
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            box.innerHTML = html;
+        }
+
+        function excludeDate(d) {
+            if (!window.appState.excludedDates.includes(d)) window.appState.excludedDates.push(d);
+            updateDatePreview();
+        }
+
+        function restoreDate(d) {
+            window.appState.excludedDates = window.appState.excludedDates.filter(x => x !== d);
+            updateDatePreview();
+        }
+
+        async function handleAddActivity(e) {
+            e.preventDefault();
+
+            const title = document.getElementById('actTitle').value.trim();
+            const teacher = document.getElementById('actTeacher').value.trim();
+            const participants = parseInt(document.getElementById('actParticipants').value) || 0;
+            const notes = document.getElementById('actNotes').value.trim();
+            const allDay = document.getElementById('actAllDay').checked;
+            const startTime = document.getElementById('actStartTime').value;
+            const endTime = document.getElementById('actEndTime').value;
+
+            const gradeCbs = document.querySelectorAll('input[name="actGrade"]:checked');
+            const grades = Array.from(gradeCbs).map(cb => cb.value);
+
+            let locations = [];
+            if (window.appState.locationType === 'onCampus') {
+                locations = [...window.appState.selectedActLocations];
+            } else {
+                const offVal = document.getElementById('actOffCampusInput').value.trim();
+                if (offVal) locations = [`校外 - ${offVal}`];
+            }
+
+            if (locations.length === 0) {
+                showToast('請至少選擇一個活動地點！', 'error');
+                return;
+            }
+
+            const allSelectedDates = getSelectedDates();
+            const finalDates = allSelectedDates.filter(d => !window.appState.excludedDates.includes(d));
+
+            if (finalDates.length === 0) {
+                showToast('請選擇至少一個有效活動日期！', 'error');
+                return;
+            }
+
+            // Conflict Strict Check
+            let conflictDetails = [];
+            finalDates.forEach(d => {
+                const confs = checkConflicts(d, startTime, endTime, allDay, locations);
+                if (confs.length > 0) {
+                    conflictDetails.push(...confs);
+                }
+            });
+
+            if (conflictDetails.length > 0) {
+                showToast(`🚫 提交攔截：檢測到場地/時間衝突或已封鎖日期！\n${conflictDetails[0]}`, 'error');
+                return;
+            }
+
+            const newAct = {
+                id: 'ACT-' + Date.now(),
+                title: title,
+                dates: finalDates,
+                startTime: startTime,
+                endTime: endTime,
+                allDay: allDay,
+                locations: locations,
+                grades: grades,
+                participants: participants,
+                teacher: teacher,
+                notes: notes,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            };
+
+            window.appState.activities.unshift(newAct);
+            await postToGoogleSheet('add', newAct);
+
+            showToast(`成功登記《${title}》！已寫入中央紀錄庫`, 'success');
+
+            document.getElementById('actTitle').value = '';
+            document.getElementById('actNotes').value = '';
+            document.getElementById('actParticipants').value = '';
+            window.appState.selectedActLocations = [];
+            window.appState.excludedDates = [];
+            renderVenuePillsForAct();
+            renderActivities();
+            updateBadges();
+            updateDatePreview();
+        }
+
+        function renderActivities() {
+            const container = document.getElementById('activityListContainer');
+            if (!container) return;
+
+            const role = window.appState.currentRole;
+            const tab = window.appState.adminTab;
+
+            if (role !== 'admin') {
+                container.innerHTML = `
+                    <div class="text-center py-12 px-6 bg-slate-50 rounded-2xl border border-dashed border-slate-300 space-y-3">
+                        <div class="w-14 h-14 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner">
+                            <i class="fa-solid fa-lock"></i>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-800">全校登記紀錄列表僅供管理員查看</h3>
+                        <p class="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                            為了確保資料存取安全與校務行程專屬權限，全校紀錄總覽僅開放給管理員權限。老師請於左側表單直接輸入並提交活動行程。
+                        </p>
+                        <button onclick="requestRoleSwitch('admin')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow transition inline-flex items-center gap-1.5">
+                            <i class="fa-solid fa-key"></i> 輸入管理員密碼切換模式
+                        </button>
+                    </div>
+                `;
+                const countBadge = document.getElementById('activityCountBadge');
+                if (countBadge) countBadge.textContent = `管理員專屬`;
+                return;
+            }
+
+            let list = [...window.appState.activities];
+
+            if (tab === 'pending') list = list.filter(a => a.status === 'pending');
+            else if (tab === 'blocked') {
+                renderBlockedManagementTab(container);
+                return;
+            }
+
+            const searchVal = (document.getElementById('searchInput')?.value || '').toLowerCase();
+            const gradeVal = document.getElementById('gradeFilter')?.value || 'ALL';
+
+            if (searchVal) {
+                list = list.filter(a => 
+                    a.title.toLowerCase().includes(searchVal) ||
+                    a.teacher.toLowerCase().includes(searchVal) ||
+                    (a.locations && a.locations.some(l => l.toLowerCase().includes(searchVal)))
+                );
+            }
+
+            if (gradeVal !== 'ALL') {
+                list = list.filter(a => a.grades && a.grades.includes(gradeVal));
+            }
+
+            const countBadge = document.getElementById('activityCountBadge');
+            if (countBadge) countBadge.textContent = `${list.length} 項`;
+
+            if (list.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <i class="fa-solid fa-folder-open text-4xl mb-2 text-slate-300"></i>
+                        <p class="text-xs font-bold">目前無符合條件的活動紀錄</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = list.map(act => `
+                <div class="bg-white p-4 rounded-2xl border ${act.status === 'pending' ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200'} shadow-xs hover:shadow-md transition space-y-2.5">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h3 class="font-black text-slate-800 text-sm sm:text-base">${act.title}</h3>
+                                ${act.status === 'pending' ? 
+                                    `<span class="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black px-2 py-0.5 rounded-md"><i class="fa-solid fa-clock mr-1"></i>待更新</span>` : 
+                                    `<span class="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black px-2 py-0.5 rounded-md"><i class="fa-solid fa-check mr-1"></i>已更新</span>`
+                                }
+                            </div>
+                            <p class="text-xs text-slate-500 font-semibold mt-0.5">
+                                <i class="fa-solid fa-user-tie text-purple-500 mr-1"></i>負責老師：<b>${act.teacher}</b> 
+                                ${act.participants ? `<span class="ml-2 text-slate-400">| 人數: ${act.participants}人</span>` : ''}
+                            </p>
+                        </div>
+
+                        <div class="flex items-center space-x-1 shrink-0">
+                            ${act.status === 'pending' ? `
+                                <button onclick="approveActivity('${act.id}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition flex items-center gap-1">
+                                    <i class="fa-solid fa-check"></i> 審批
+                                </button>
+                            ` : ''}
+                            <button onclick="deleteActivity('${act.id}')" class="px-2 py-1 text-slate-400 hover:text-rose-600 font-bold text-xs rounded-lg hover:bg-rose-50 transition" title="刪除行程">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        <span class="font-bold text-blue-700 flex items-center gap-1">
+                            <i class="fa-solid fa-calendar-day"></i>
+                            ${act.allDay ? '全天活動' : `${act.startTime} - ${act.endTime}`}
+                        </span>
+                        <span class="text-slate-300">|</span>
+                        <span>日期: ${act.dates ? act.dates.join(', ') : '單日'}</span>
+                    </div>
+
+                    <div class="flex flex-wrap gap-1">
+                        ${act.locations ? act.locations.map(l => `<span class="bg-blue-50 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-blue-200"><i class="fa-solid fa-location-dot text-rose-500 mr-1"></i>${l}</span>`).join('') : ''}
+                        ${act.grades ? act.grades.map(g => `<span class="bg-indigo-50 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-indigo-200">${g}</span>`).join('') : ''}
+                    </div>
+
+                    ${act.notes ? `<p class="text-[11px] text-slate-500 italic bg-amber-50/50 p-2 rounded-lg border border-amber-100"><i class="fa-solid fa-note-sticky text-amber-500 mr-1"></i>${act.notes}</p>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderBlockedManagementTab(container) {
+            container.innerHTML = `
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+                    <div class="border-b border-slate-200 pb-2">
+                        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                            <i class="fa-solid fa-ban text-rose-600"></i> 全校日期封鎖設定 (支援多日與週期活動)
+                        </h3>
+                        <p class="text-xs text-slate-500">已被封鎖的日期，教職員進行活動登記時將會被系統自動攔截。</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3">
+                            <span class="font-bold text-xs text-slate-800 block">新增封鎖日期 / 多日週期：</span>
+                            
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-600 mb-1">起始日期</label>
+                                    <input type="date" id="blockStartDate" class="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-600 mb-1">結束日期 (單日可不填)</label>
+                                    <input type="date" id="blockEndDate" class="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-600 mb-1">涵蓋星期 (週期篩選)：</label>
+                                <div class="grid grid-cols-7 gap-1 text-center text-[10px]">
+                                    <label class="cursor-pointer bg-slate-50 p-1 rounded border"><span class="text-rose-500 font-bold">日</span><br><input type="checkbox" name="blockWk" value="0" checked></label>
+                                    <label class="cursor-pointer bg-slate-50 p-1 rounded border"><span class="font-bold">一</span><br><input type="checkbox" name="blockWk" value="1" checked></label>
+                                    <label class="cursor-pointer bg-slate-50 p-1 rounded border"><span class="font-bold">二</span><br><input type="checkbox" name="blockWk" value="2" checked></label>
+                                    <label class="cursor-pointer bg-slate-50 p-1 rounded border"><span class="font-bold">三</span><br><input type="checkbox" name="blockWk" value="3" checked></label>
+                                    <label class="cursor-pointer bg-slate-50 p-1 rounded border"><span class="font-bold">四</span><br><input type="checkbox" name="blockWk" value="4" checked></label>
+                                    <label class="cursor-pointer bg-slate-50 p-1 rounded border"><span class="font-bold">五</span><br><input type="checkbox" name="blockWk" value="5" checked></label>
+                                    <label class="cursor-pointer bg-slate-50 p-1 rounded border"><span class="text-amber-600 font-bold">六</span><br><input type="checkbox" name="blockWk" value="6" checked></label>
+                                </div>
+                            </div>
+
+                            <button onclick="addBlockedDateRange()" class="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-plus"></i> 確認新增封鎖日期
+                            </button>
+                        </div>
+
+                        <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block font-bold text-xs text-slate-800">目前已被封鎖日期 (<span id="blockedCountSpan">${window.appState.blockedDates.length}</span> 天)：</label>
+                                    ${window.appState.blockedDates.length > 0 ? `<button onclick="clearAllBlockedDates()" class="text-[10px] font-bold text-rose-600 hover:underline">清空封鎖</button>` : ''}
+                                </div>
+                                <div class="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto custom-scrollbar p-1">
+                                    ${window.appState.blockedDates.length > 0 
+                                        ? window.appState.blockedDates.map(d => `
+                                            <span class="bg-rose-100 text-rose-800 text-xs font-bold px-2 py-1 rounded-lg border border-rose-300 flex items-center gap-1">
+                                                ${d} <button onclick="removeBlockedDate('${d}')" class="text-rose-600 hover:text-rose-900 font-bold ml-1">✕</button>
+                                            </span>
+                                        `).join('') 
+                                        : '<span class="text-xs text-slate-400 italic">尚未封鎖任何日期</span>'
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function addBlockedDateRange() {
+            const startStr = document.getElementById('blockStartDate').value;
+            const endStr = document.getElementById('blockEndDate').value || startStr;
+            if (!startStr) {
+                showToast('請選擇起始日期！', 'error');
+                return;
+            }
+
+            const start = new Date(startStr);
+            const end = new Date(endStr);
+            if (start > end) {
+                showToast('結束日期不能早於起始日期！', 'error');
+                return;
+            }
+
+            const selectedWks = Array.from(document.querySelectorAll('input[name="blockWk"]:checked')).map(cb => parseInt(cb.value));
+            let addedCount = 0;
+            const curr = new Date(start);
+
+            while (curr <= end) {
+                if (selectedWks.includes(curr.getDay())) {
+                    const ymd = formatYMD(curr);
+                    if (!window.appState.blockedDates.includes(ymd)) {
+                        window.appState.blockedDates.push(ymd);
+                        addedCount++;
+                    }
+                }
+                curr.setDate(curr.getDate() + 1);
+            }
+
+            window.appState.blockedDates.sort();
+            saveBlockedDatesToStorage();
+            showToast(`已成功新增 ${addedCount} 個全校封鎖日，並已永久儲存！`, 'success');
+            renderActivities();
+            updateDatePreview();
+        }
+
+        function removeBlockedDate(d) {
+            window.appState.blockedDates = window.appState.blockedDates.filter(x => x !== d);
+            saveBlockedDatesToStorage();
+            showToast(`已解除 ${d} 之封鎖，變更已儲存`, 'info');
+            renderActivities();
+            updateDatePreview();
+        }
+
+        function clearAllBlockedDates() {
+            window.appState.blockedDates = [];
+            saveBlockedDatesToStorage();
+            showToast(`已清空所有封鎖日期並已更新儲存`, 'info');
+            renderActivities();
+            updateDatePreview();
+        }
+
+        async function approveActivity(id) {
+            const act = window.appState.activities.find(a => String(a.id) === String(id));
+            if (!act) return;
+            act.status = 'updated';
+            await postToGoogleSheet('update', act);
+            showToast(`已成功審批項目《${act.title}》！`, 'success');
+            renderActivities();
+            updateBadges();
+        }
+
+        async function markAllPendingAsUpdated() {
+            const pendingList = window.appState.activities.filter(a => a.status === 'pending');
+            if (pendingList.length === 0) {
+                showToast('目前沒有待更新/未審批的行程！', 'info');
+                return;
+            }
+            window.appState.activities.forEach(a => {
+                if (a.status === 'pending') a.status = 'updated';
+            });
+            await postToGoogleSheet('batchApprove', {});
+            showToast(`一鍵審批成功！共更新 ${pendingList.length} 個行程。`, 'success');
+            renderActivities();
+            updateBadges();
+        }
+
+        async function deleteActivity(id) {
+            if (!confirm('確定要刪除此項活動紀錄嗎？此動作將同步至雲端。')) return;
+            const idx = window.appState.activities.findIndex(a => String(a.id) === String(id));
+            if (idx >= 0) {
+                const deleted = window.appState.activities.splice(idx, 1)[0];
+                await postToGoogleSheet('delete', { id: id });
+                showToast(`已刪除《${deleted.title}》`, 'info');
+                renderActivities();
+                updateBadges();
+                updateDatePreview();
+            }
+        }
+
+        async function clearAllDataWithConfirm() {
+            if (!confirm('【警告】您確定要清除所有活動資料嗎？此操作將清空本地與雲端所有紀錄！')) return;
+            window.appState.activityBackup = [...window.appState.activities];
+            window.appState.activities = [];
+            await postToGoogleSheet('clearAll', {});
+            showToast('已清空所有活動紀錄！如需復原請點擊「一鍵回復」。', 'error');
+            renderActivities();
+            updateBadges();
+            updateDatePreview();
+        }
+
+        async function restoreDataFromBackup() {
+            if (!window.appState.activityBackup || window.appState.activityBackup.length === 0) {
+                showToast('沒有可供回復的備份紀錄！', 'info');
+                return;
+            }
+            window.appState.activities = [...window.appState.activityBackup];
+            await postToGoogleSheet('batchAdd', window.appState.activities);
+            showToast(`已成功回復 ${window.appState.activities.length} 項活動紀錄！`, 'success');
+            renderActivities();
+            updateBadges();
+            updateDatePreview();
+        }
+
+        function updateBadges() {
+            const pendingCount = window.appState.activities.filter(a => a.status === 'pending').length;
+            const totalCount = window.appState.activities.length;
+            const blockedCount = window.appState.blockedDates.length;
+
+            const pendingBadge = document.getElementById('pendingBadge');
+            if (pendingBadge) pendingBadge.textContent = pendingCount;
+
+            const masterBadge = document.getElementById('masterBadge');
+            if (masterBadge) masterBadge.textContent = totalCount;
+
+            const blockedBadge = document.getElementById('blockedBadge');
+            if (blockedBadge) blockedBadge.textContent = blockedCount;
+        }
+
+        function switchAdminTab(tab) {
+            window.appState.adminTab = tab;
+            const tabPending = document.getElementById('tabBtnPending');
+            const tabMaster = document.getElementById('tabBtnMaster');
+            const tabBlocked = document.getElementById('tabBtnBlocked');
+
+            if (tabPending) tabPending.className = `flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${tab === 'pending' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:bg-white/60'}`;
+            if (tabMaster) tabMaster.className = `flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${tab === 'master' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:bg-white/60'}`;
+            if (tabBlocked) tabBlocked.className = `flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${tab === 'blocked' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:bg-white/60'}`;
+
+            renderActivities();
+        }
+
+        function requestRoleSwitch(role) {
+            if (role === 'admin') {
+                if (window.appState.currentRole === 'admin') return;
+                openPasswordModal();
+            } else {
+                setRole('teacher');
+                showToast('已切換至【教師登記模式】', 'info');
+            }
+        }
+
+        function setRole(role) {
+            window.appState.currentRole = role;
+            const roleBadge = document.getElementById('roleBadge');
+            const btnTeacher = document.getElementById('btnRoleTeacher');
+            const btnAdmin = document.getElementById('btnRoleAdmin');
+            const adminTabBar = document.getElementById('adminTabBar');
+            const adminSearchFilterBar = document.getElementById('adminSearchFilterBar');
+            const teacherFooter = document.getElementById('teacherFooter');
+            const adminFooter = document.getElementById('adminFooter');
+            const btnBatchApprove = document.getElementById('btnBatchApprove');
+            const btnClearAllData = document.getElementById('btnClearAllData');
+            const btnRestoreData = document.getElementById('btnRestoreData');
+
+            if (role === 'admin') {
+                if (roleBadge) roleBadge.innerHTML = '<i class="fa-solid fa-user-shield"></i> 管理員模式';
+                if (roleBadge) roleBadge.className = 'bg-purple-300 text-purple-950 text-xs font-black px-2.5 py-0.5 rounded-full shadow-sm flex items-center gap-1';
+                if (btnTeacher) btnTeacher.className = 'px-3 py-1.5 text-xs font-bold rounded-xl transition text-blue-100 hover:text-white';
+                if (btnAdmin) btnAdmin.className = 'px-3 py-1.5 text-xs font-bold rounded-xl transition bg-white text-purple-900 shadow';
+
+                if (adminTabBar) adminTabBar.classList.remove('hidden');
+                if (adminSearchFilterBar) adminSearchFilterBar.classList.remove('hidden');
+                if (teacherFooter) teacherFooter.classList.add('hidden');
+                if (adminFooter) adminFooter.classList.remove('hidden');
+                if (btnBatchApprove) btnBatchApprove.classList.remove('hidden');
+                if (btnClearAllData) btnClearAllData.classList.remove('hidden');
+                if (btnRestoreData) btnRestoreData.classList.remove('hidden');
+            } else {
+                if (roleBadge) roleBadge.innerHTML = '<i class="fa-solid fa-user-pen"></i> 教師登記模式';
+                if (roleBadge) roleBadge.className = 'bg-amber-400 text-slate-900 text-xs font-black px-2.5 py-0.5 rounded-full shadow-sm flex items-center gap-1';
+                if (btnTeacher) btnTeacher.className = 'px-3 py-1.5 text-xs font-bold rounded-xl transition bg-white text-blue-900 shadow';
+                if (btnAdmin) btnAdmin.className = 'px-3 py-1.5 text-xs font-bold rounded-xl transition text-blue-100 hover:text-white';
+
+                if (adminTabBar) adminTabBar.classList.add('hidden');
+                if (adminSearchFilterBar) adminSearchFilterBar.classList.add('hidden');
+                if (teacherFooter) teacherFooter.classList.remove('hidden');
+                if (adminFooter) adminFooter.classList.add('hidden');
+                if (btnBatchApprove) btnBatchApprove.classList.add('hidden');
+                if (btnClearAllData) btnClearAllData.classList.add('hidden');
+                if (btnRestoreData) btnRestoreData.classList.add('hidden');
+            }
+            renderActivities();
+            updateBadges();
+        }
+
+        function openPasswordModal() {
+            const modal = document.getElementById('passwordModal');
+            const input = document.getElementById('inputAdminPassword');
+            const err = document.getElementById('passwordErrorMsg');
+            if (modal) modal.classList.remove('hidden');
+            if (input) { input.value = ''; input.focus(); }
+            if (err) err.classList.add('hidden');
+        }
+
+        function closePasswordModal() {
+            const modal = document.getElementById('passwordModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function verifyAdminPassword() {
+            const input = document.getElementById('inputAdminPassword');
+            const err = document.getElementById('passwordErrorMsg');
+            if (input && input.value === window.appState.adminPassword) {
+                closePasswordModal();
+                setRole('admin');
+                showToast('驗證成功，已進入【管理員專區】', 'success');
+            } else {
+                if (err) err.classList.remove('hidden');
+            }
+        }
+
+        function openGoogleSheetModal() {
+            const modal = document.getElementById('googleSheetModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeGoogleSheetModal() {
+            const modal = document.getElementById('googleSheetModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function handleSheetUrlInput() {
+            const url = document.getElementById('inputAppsScriptUrl').value.trim();
+            if (url) {
+                window.appState.googleSheetUrl = url;
+                localStorage.setItem('apps_script_url', url);
+            }
+        }
+
+        async function saveAndTestGoogleSheetUrl() {
+            handleSheetUrlInput();
+            const msg = document.getElementById('sheetApiStatusMsg');
+            if (msg) msg.textContent = '正在測試連線中...';
+            await syncDataFromGoogleSheet(true);
+            if (msg) msg.textContent = '目前狀態：已連線至雲端後端';
+        }
+
+        function copyAppsScriptCode() {
+            const codeArea = document.getElementById('appsScriptCodeArea');
+            if (codeArea) {
+                codeArea.select();
+                document.execCommand('copy');
+                showToast('已複製 Apps Script 程式碼至剪貼簿！', 'success');
+            }
+        }
+
+        function openHelpModal() {
+            const modal = document.getElementById('helpModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeHelpModal() {
+            const modal = document.getElementById('helpModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        // Export All Activities as Excel (.xlsx)
+        function exportExcelXLSX() {
+            if (window.appState.activities.length === 0) {
+                showToast('目前沒有任何活動紀錄可供匯出！', 'info');
+                return;
+            }
+
+            const exportData = window.appState.activities.map((act, index) => ({
+                "序號": index + 1,
+                "活動名稱": act.title,
+                "狀態": act.status === 'pending' ? '待更新(未審批)' : '已更新(已審批)',
+                "日期": Array.isArray(act.dates) ? act.dates.join(', ') : act.dates,
+                "開始時間": act.startTime,
+                "結束時間": act.endTime,
+                "全天活動": act.allDay ? '是' : '否',
+                "地點": Array.isArray(act.locations) ? act.locations.join(', ') : act.locations,
+                "涉及年級": Array.isArray(act.grades) ? act.grades.join(', ') : act.grades,
+                "人數": act.participants,
+                "負責老師": act.teacher,
+                "備註": act.notes || '',
+                "建立時間": act.createdAt || ''
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "全校活動總表");
+            XLSX.writeFile(wb, `全校活動總表_${formatYMD(new Date())}.xlsx`);
+
+            showToast(`已成功匯出全校活動總表 (${exportData.length} 項) 為 Excel 檔案！`, 'success');
+        }
+
+        // Export ONLY Pending (Unapproved) Activities as CSV for Google Calendar
+        function exportGoogleCalCSV() {
+            // 僅篩選未審批 (status === 'pending') 的項目
+            const pendingActivities = window.appState.activities.filter(a => a.status === 'pending');
+
+            if (pendingActivities.length === 0) {
+                showToast('目前沒有未審批（待更新）的活動項目可供匯出！', 'info');
+                return;
+            }
+
+            // Standard Google Calendar CSV Headers with UTF-8 BOM
+            let csvContent = '\uFEFFSubject,Start Date,Start Time,End Date,End Time,All Day Event,Description,Location\n';
+
+            pendingActivities.forEach(act => {
+                const dates = act.dates && act.dates.length > 0 ? act.dates : [formatYMD(new Date())];
+                const description = `負責老師: ${act.teacher} | 涉及年級: ${(act.grades || []).join('/')} | 人數: ${act.participants || 0}人 | 備註: ${act.notes || '無'}`;
+                const locationStr = (act.locations || []).join('; ');
+                const isAllDay = act.allDay ? 'True' : 'False';
+
+                dates.forEach(d => {
+                    const row = [
+                        `"${(act.title || '').replace(/"/g, '""')}"`,
+                        `"${d}"`,
+                        act.allDay ? '""' : `"${act.startTime || '09:00'}"`,
+                        `"${d}"`,
+                        act.allDay ? '""' : `"${act.endTime || '12:00'}"`,
+                        `"${isAllDay}"`,
+                        `"${description.replace(/"/g, '""')}"`,
+                        `"${locationStr.replace(/"/g, '""')}"`
+                    ];
+                    csvContent += row.join(',') + '\n';
+                });
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `googleCal_未審批項目_${formatYMD(new Date())}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast(`已成功匯出 ${pendingActivities.length} 項未審批活動為 CSV 日曆檔！`, 'success');
+        }
+    </script>
+</body>
+</html>
